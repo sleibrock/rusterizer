@@ -1,5 +1,11 @@
+// Crate defs
 extern crate bmp;
-use tools::abs;
+
+// standard imports
+use std::mem::swap;
+use std::cmp::{min, max};
+
+// external
 use self::bmp::{Pixel, Image};
 
 pub struct V2 {
@@ -8,34 +14,102 @@ pub struct V2 {
 }
 
 pub struct Line {
-    pub x0: i32,
-    pub y0: i32,
-    pub x1: i32,
-    pub y1: i32,
+    pub a: V2,
+    pub b: V2,
 }
 
 pub struct Rect {
-    pub x: i32,
-    pub y: i32,
+    pub p: V2,
     pub w: i32,
     pub h: i32,
 }
 
+pub struct Tri {
+    pub v1: V2,
+    pub v2: V2,
+    pub v3: V2,
+}
+
 impl V2 {
-    pub fn new(x: i32, y: i32) -> V2 {
-        return V2{x: x, y: y};
+    pub fn new(data: [i32; 2]) -> V2 {
+        return V2{x: data[0], y: data[1]};
+    }
+
+    pub fn line_to(&self, data: [i32; 2]) -> Line {
+        return Line{a:V2::new([self.x, self.y]), b:V2::new(data)};
+    }
+
+    pub fn segment(&self, data: &V2) -> Line {
+        return Line{a:V2::new([self.x, self.y]), b:V2::new([data.x, data.y])};
+    }
+
+    pub fn add(&self, other: &V2) -> V2 {
+        // Add two vectors together (currently unsafe for OVF)
+        return V2{x: self.x+other.x, y: self.y+other.y};
+    }
+
+    pub fn sub(&self, other: &V2) -> V2 {
+        // Sub two vectors together (unsafe OVF)
+        return V2{x: self.x-other.x, y: self.y-other.y};
+    }
+
+    pub fn dot(&self, other: &V2) -> i32 {
+        // Get the dot product (sum of all multiplications)
+        return (self.x*other.x) + (self.y*other.y);
     }
 }
 
 impl Line {
-    pub fn new(x0: i32, y0: i32, x1: i32, y1: i32) -> Line {
-        return Line{x0: x0, y0: y0, x1: x1, y1: y1};
+    pub fn new(data0: [i32; 2], data1: [i32; 2]) -> Line {
+        return Line{a: V2::new(data0), b: V2::new(data1)};
+    }
+
+    pub fn rect(&self) -> Rect {
+        let mut tx = self.a.x;
+        let mut ty = self.a.y;
+        if self.b.x < tx || self.b.y < ty {
+            tx = self.b.x;
+            ty = self.b.y;
+        }
+        return Rect::new([tx, ty], (self.a.x-self.b.x).abs(), (self.a.y-self.b.y).abs());
     }
 }
 
 impl Rect {
-    pub fn new(x: i32, y: i32, w: i32, h: i32) -> Rect {
-        return Rect{x: x, y: y, w: w, h: h};
+    pub fn new(p: [i32; 2], w: i32, h: i32) -> Rect {
+        return Rect{p: V2::new(p), w: w, h: h};
+    }
+}
+
+impl Tri {
+    pub fn new(v1: [i32; 2], v2: [i32; 2], v3: [i32; 2]) -> Tri {
+        return Tri{v1: V2::new(v1), v2: V2::new(v2), v3: V2::new(v3)};
+    }
+
+    pub fn rect(&self) -> Rect {
+        // Find the bounding rect of the triangle
+        let tx = min(self.v1.x, min(self.v2.x, self.v3.x));
+        let ty = min(self.v1.y, min(self.v2.y, self.v3.y));
+        let bx = max(self.v1.x, max(self.v2.x, self.v3.x));
+        let by = max(self.v1.y, max(self.v2.y, self.v3.y));
+        return V2::new([tx, ty]).line_to([bx, by]).rect();
+    }
+
+    pub fn contains(&self, p: V2) -> bool {
+        let v0 = self.v3.sub(&self.v1);
+        let v1 = self.v2.sub(&self.v1);
+        let v2 = p.sub(&self.v1);
+
+        let dot00 = v0.dot(&v0);
+        let dot01 = v0.dot(&v1);
+        let dot02 = v0.dot(&v2);
+        let dot11 = v1.dot(&v1);
+        let dot12 = v1.dot(&v2);
+
+        let invD : f32 = 1.0 / (((dot00*dot11)-(dot01*dot01)) as f32);
+        let u = ((((dot11*dot02)-(dot01*dot12)) as f32)*invD) as i32;
+        let v = ((((dot00*dot12)-(dot01*dot02)) as f32)*invD) as i32;
+        return (u as i32 >= 0) && (v as i32 >= 0) && (u + v < 1);
     }
 }
 
@@ -44,23 +118,29 @@ pub trait Drawable {
     fn draw(&self, color: Pixel, img: &mut Image);
 }
 
-// Implementations of Structs (and Trait implements)
+pub trait Fillable {
+    fn fill(&self, color: Pixel, img: &mut Image);
+}
+
 impl Drawable for Line {
     fn draw(&self, color: Pixel, img: &mut Image) {
         let mut steep = false;
-        let mut xa = self.x0; let mut xb = self.x1;
-        let mut ya = self.y0; let mut yb = self.y1;
-        if abs(xa-xb) < abs(ya-yb) {
-            xa = self.y0; xb = self.y1;
-            ya = self.x0; yb = self.x1;
+        let mut xa = self.a.x;
+        let mut xb = self.b.x;
+        let mut ya = self.a.y;
+        let mut yb = self.b.y;
+        if (xa-xb).abs() < (ya-yb).abs() {
+            swap(&mut xa, &mut ya);
+            swap(&mut xb, &mut yb);
             steep = true;
         }
         if xa > xb {
-            xa = self.x1; xb = self.x0;
-            ya = self.y0; yb = self.y1;
+            swap(&mut xa, &mut xb);
+            swap(&mut ya, &mut yb);
         }
-        let dx = xb-xa; let dy = yb-ya;
-        let derror2 = abs(dy)*2;
+        let dx = xb-xa;
+        let dy = yb-ya;
+        let derror2 = dy.abs()*2;
         let mut error2 = 0;
         let mut y = ya;
         let cx = img.get_width() as i32;
@@ -68,6 +148,7 @@ impl Drawable for Line {
 
         // draw all pixels correcting the Y as we travel
         for x in xa..xb {
+            // if a pixel is not within the canvas region, skip
             if x < 0 || x >= cx || y < 0 || y >= cy {
                 continue;
             }
@@ -87,11 +168,73 @@ impl Drawable for Line {
 
 impl Drawable for Rect {
     fn draw(&self, color: Pixel, img: &mut Image){
-        let rx2 = self.x + self.w;
-        let ry2 = self.y + self.h;
-        Line{x0: self.x, y0: self.y, x1: rx2, y1: self.y}.draw(color, img);
-        Line{x0: self.x, y0: self.y, x1: self.x, y1: ry2}.draw(color, img);
-        Line{x0: rx2, y0: self.y, x1: rx2, y1: ry2}.draw(color, img);
-        Line{x0: self.x, y0: ry2, x1: rx2, y1: ry2}.draw(color, img);
+        // Draw lines around the rectangle given
+        let rx2 = self.p.x + self.w;
+        let ry2 = self.p.y + self.h;
+        self.p.line_to([rx2, self.p.y]).draw(color, img);
+        self.p.line_to([self.p.x, ry2]).draw(color, img);
+        V2::new([self.p.x, ry2]).line_to([rx2, ry2]).draw(color, img);
+        V2::new([rx2, self.p.y]).line_to([rx2, ry2]).draw(color, img);
+    }
+}
+
+impl Fillable for Rect {
+    fn fill(&self, color: Pixel, img: &mut Image){
+        // Fill the rectangle with pixels one at a time
+        let cx = img.get_width() as i32;
+        let cy = img.get_height() as i32;
+        for y in self.p.y..(self.p.y+self.h) {
+            for x in self.p.x..(self.p.x+self.w) {
+                if x < 0 || x >= cx || y < 0 || y >= cy {
+                    continue;
+                }
+                img.set_pixel(x as u32, y as u32, color);
+            }
+        }
+    }
+}
+
+impl Drawable for Tri {
+    fn draw(&self, color: Pixel, img: &mut Image){
+        // Draw the lines from each vert to create a stroke triangle
+        self.v1.line_to([self.v2.x, self.v2.y]).draw(color, img);
+        self.v2.line_to([self.v3.x, self.v3.y]).draw(color, img);
+        self.v3.line_to([self.v1.x, self.v1.y]).draw(color, img);
+    }
+}
+
+impl Fillable for Tri {
+    fn fill(&self, color: Pixel, img: &mut Image){
+        // Fill a triangle by checking each point in a rect
+        // if it is inside of the triangle (hard)
+        let cx = img.get_width() as i32;
+        let cy = img.get_width() as i32;
+        let rect = self.rect();
+        for y in rect.p.y..(rect.p.y+rect.h) {
+            for x in rect.p.x..(rect.p.x+rect.w) {
+                if x < 0 || x >= cx || y < 0 || y >= cy {
+                    continue;
+                }
+                if !self.contains(V2::new([x,y])) {
+                    continue;
+                }
+                img.set_pixel(x as u32, y as u32, color);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn test_dotprod() {
+        use geometry::V2;
+        let a = V2::new([1, 3]);
+        let b = V2::new([4, -2]);
+        let d1 = a.dot(&b);
+        let d2 = b.dot(&a);
+
+        println!("d1 is {}", d1);
+        assert_eq!(-2, d1);
     }
 }
