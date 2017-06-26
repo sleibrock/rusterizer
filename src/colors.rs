@@ -22,14 +22,10 @@ pub fn get_pixel(c: Color) -> Pixel {
     }
 }
 
-pub fn pixel(r: u8, g: u8, b: u8) -> Pixel {
-    return Pixel::new(r, g, b);
-}
-
 // Blend a color based on the value of `t`
 pub fn blend(c1: Pixel, c2: Pixel, t: f32) -> Pixel {
-    let a = (c1.r as f32 + (t * (c2.r as f32))) as u8;
-    let b = (c1.g as f32 + (t * (c2.g as f32))) as u8;
-    let c = (c1.b as f32 + (t * (c2.b as f32))) as u8;
-    return Pixel{r: a, g: b, b: c};
+    let a = (1.0 - t) * (c1.r as f32) + (t * c2.r as f32);
+    let b = (1.0 - t) * (c1.g as f32) + (t * c2.g as f32);
+    let c = (1.0 - t) * (c1.b as f32) + (t * c2.b as f32);
+    return Pixel{r: a as u8, g: b as u8, b: c as u8};
 }
