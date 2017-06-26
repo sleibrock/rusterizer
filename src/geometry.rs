@@ -154,13 +154,12 @@ impl Drawable for Line {
         // draw all pixels correcting the Y as we travel
         for x in xa..xb {
             // if a pixel is not within the canvas region, skip
-            if x < 0 || x >= cx || y < 0 || y >= cy {
-                continue;
-            }
-            if steep {
-                img.set_pixel(y as u32, x as u32, color);
-            } else {
-                img.set_pixel(x as u32, y as u32, color);
+            if x > 0 && x < cx && y > 0 && y < cy {
+                if steep {
+                    img.set_pixel(y as u32, x as u32, color);
+                } else {
+                    img.set_pixel(x as u32, y as u32, color);
+                }
             }
             error2 += derror2;
             if error2 > dx {
