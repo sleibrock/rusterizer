@@ -96,34 +96,39 @@ impl Tri {
     }
 
     pub fn contains(&self, p: V2) -> bool {
+        // Check if point is inside the triangle using Barycentric equations
         let v0 = self.v3.sub(&self.v1);
         let v1 = self.v2.sub(&self.v1);
         let v2 = p.sub(&self.v1);
-
         let dot00 = v0.dot(&v0);
         let dot01 = v0.dot(&v1);
         let dot02 = v0.dot(&v2);
         let dot11 = v1.dot(&v1);
         let dot12 = v1.dot(&v2);
-
-        let invD : f32 = 1.0 / (((dot00*dot11)-(dot01*dot01)) as f32);
-        let u = ((((dot11*dot02)-(dot01*dot12)) as f32)*invD) as i32;
-        let v = ((((dot00*dot12)-(dot01*dot02)) as f32)*invD) as i32;
-        return (u as i32 >= 0) && (v as i32 >= 0) && (u + v < 1);
+        let i_d : f32 = 1.0 / (dot00*dot11-dot01*dot01) as f32;
+        let u   : f32 = (dot11*dot02-dot01*dot12) as f32 * i_d;
+        let v   : f32 = (dot00*dot12-dot01*dot02) as f32 * i_d;
+        return (u >= 0.0) && (v >= 0.0) && (u + v < 1.0);
     }
 }
 
 // Traits section (define the interface of inherited struts)
 pub trait Drawable {
+    // Drawable is used for stroking shapes, not filling
     fn draw(&self, color: Pixel, img: &mut Image);
 }
 
 pub trait Fillable {
+    // Fillable is used to fill entire shapes
     fn fill(&self, color: Pixel, img: &mut Image);
 }
 
+// Trait implements section
 impl Drawable for Line {
     fn draw(&self, color: Pixel, img: &mut Image) {
+        // Draw a line from A to B compensating Y as we travel
+        // Begin by making sure the beginning A point is the minimum point
+        // We want our accumulator to only increment
         let mut steep = false;
         let mut xa = self.a.x;
         let mut xb = self.b.x;
@@ -206,7 +211,6 @@ impl Drawable for Tri {
 impl Fillable for Tri {
     fn fill(&self, color: Pixel, img: &mut Image){
         // Fill a triangle by checking each point in a rect
-        // if it is inside of the triangle (hard)
         let cx = img.get_width() as i32;
         let cy = img.get_width() as i32;
         let rect = self.rect();
@@ -224,17 +228,39 @@ impl Fillable for Tri {
     }
 }
 
+// Unit test section for mathy stuff
 #[cfg(test)]
 mod test {
+    use geometry::V2;
+    #[test]
+    fn test_add(){
+        let a = V2::new([10, 20]);
+        let b = V2::new([30, 30]);
+        let c = a.add(&b);
+        assert_eq!(c.x, 40);
+        assert_eq!(c.y, 50);
+    }
+
+    #[test]
+    fn test_sub() {
+        let a = V2::new([100, 50]);
+        let b = V2::new([50, 30]);
+        let c = a.sub(&b);
+        let d = b.sub(&a);
+        assert_eq!(c.x, 50);
+        assert_eq!(c.y, 20);
+        assert_eq!(d.x, -50);
+        assert_eq!(d.y, -20);
+    }
+    
     #[test]
     fn test_dotprod() {
-        use geometry::V2;
         let a = V2::new([1, 3]);
         let b = V2::new([4, -2]);
         let d1 = a.dot(&b);
         let d2 = b.dot(&a);
-
-        println!("d1 is {}", d1);
         assert_eq!(-2, d1);
+        assert_eq!(-2, d2);
     }
 }
+// end

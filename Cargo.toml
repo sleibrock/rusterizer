@@ -5,7 +5,3 @@ authors = ["S Leibrock <steven.leibrock@gmail.com>"]
 
 [dependencies]
 bmp = "*"
-
-[[bin]]
-path = "src/lines.rs"
-name = "lines"
