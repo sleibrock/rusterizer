@@ -3,14 +3,13 @@ extern crate bmp;
 
 // standard imports
 use std::mem::swap;
-use std::cmp::{min, max};
 
 // external
 use self::bmp::{Pixel, Image};
 
 pub struct V2 {
-    pub x: i32,
-    pub y: i32,
+    pub x: f32,
+    pub y: f32,
 }
 
 pub struct Line {
@@ -20,8 +19,8 @@ pub struct Line {
 
 pub struct Rect {
     pub p: V2,
-    pub w: i32,
-    pub h: i32,
+    pub w: f32,
+    pub h: f32,
 }
 
 pub struct Tri {
@@ -31,15 +30,17 @@ pub struct Tri {
 }
 
 impl V2 {
-    pub fn new(data: [i32; 2]) -> V2 {
+    pub fn new(data: [f32; 2]) -> V2 {
         return V2{x: data[0], y: data[1]};
     }
 
-    pub fn line_to(&self, data: [i32; 2]) -> Line {
+    pub fn line_to(&self, data: [f32; 2]) -> Line {
+        // Create a line to a set of points (non-vector)
         return Line{a:V2::new([self.x, self.y]), b:V2::new(data)};
     }
 
     pub fn segment(&self, data: &V2) -> Line {
+        // Create a line to another vector (vector used)
         return Line{a:V2::new([self.x, self.y]), b:V2::new([data.x, data.y])};
     }
 
@@ -53,14 +54,27 @@ impl V2 {
         return V2{x: self.x-other.x, y: self.y-other.y};
     }
 
-    pub fn dot(&self, other: &V2) -> i32 {
+    pub fn mul(&self, scalar: f32) -> V2 {
+        // multiply the vector by a scalar
+        return V2{x: self.x*scalar, y: self.y*scalar};
+    }
+
+    pub fn div(&self, scalar: f32) -> V2 {
+        // divide the vector by a scalar (must be nonzero/non-NaN)
+        if scalar.is_infinite() || scalar.is_nan() || scalar != 0.0 {
+            panic!("Division by zero or non-finite number");
+        }
+        return V2{x: self.x/scalar, y: self.y/scalar};
+    }
+
+    pub fn dot(&self, other: &V2) -> f32 {
         // Get the dot product (sum of all multiplications)
         return (self.x*other.x) + (self.y*other.y);
     }
 }
 
 impl Line {
-    pub fn new(data0: [i32; 2], data1: [i32; 2]) -> Line {
+    pub fn new(data0: [f32; 2], data1: [f32; 2]) -> Line {
         return Line{a: V2::new(data0), b: V2::new(data1)};
     }
 
@@ -76,22 +90,22 @@ impl Line {
 }
 
 impl Rect {
-    pub fn new(p: [i32; 2], w: i32, h: i32) -> Rect {
+    pub fn new(p: [f32; 2], w: f32, h: f32) -> Rect {
         return Rect{p: V2::new(p), w: w, h: h};
     }
 }
 
 impl Tri {
-    pub fn new(v1: [i32; 2], v2: [i32; 2], v3: [i32; 2]) -> Tri {
+    pub fn new(v1: [f32; 2], v2: [f32; 2], v3: [f32; 2]) -> Tri {
         return Tri{v1: V2::new(v1), v2: V2::new(v2), v3: V2::new(v3)};
     }
 
     pub fn rect(&self) -> Rect {
         // Find the bounding rect of the triangle
-        let tx = min(self.v1.x, min(self.v2.x, self.v3.x));
-        let ty = min(self.v1.y, min(self.v2.y, self.v3.y));
-        let bx = max(self.v1.x, max(self.v2.x, self.v3.x));
-        let by = max(self.v1.y, max(self.v2.y, self.v3.y));
+        let tx = self.v1.x.min(self.v2.x).min(self.v3.x);
+        let ty = self.v1.y.min(self.v2.y).min(self.v3.y);
+        let bx = self.v1.x.max(self.v2.x).max(self.v3.x);
+        let by = self.v1.y.max(self.v2.y).max(self.v3.y);
         return V2::new([tx, ty]).line_to([bx, by]).rect();
     }
 
@@ -130,10 +144,10 @@ impl Drawable for Line {
         // Begin by making sure the beginning A point is the minimum point
         // We want our accumulator to only increment
         let mut steep = false;
-        let mut xa = self.a.x;
-        let mut xb = self.b.x;
-        let mut ya = self.a.y;
-        let mut yb = self.b.y;
+        let mut xa = self.a.x as i32;
+        let mut xb = self.b.x as i32;
+        let mut ya = self.a.y as i32;
+        let mut yb = self.b.y as i32;
         if (xa-xb).abs() < (ya-yb).abs() {
             swap(&mut xa, &mut ya);
             swap(&mut xb, &mut yb);
@@ -153,14 +167,17 @@ impl Drawable for Line {
 
         // draw all pixels correcting the Y as we travel
         for x in xa..xb {
-            // if a pixel is not within the canvas region, skip
-            if x > 0 && x < cx && y > 0 && y < cy {
-                if steep {
+            // Check if the line is steep, and use xy accordingly
+            if steep {
+                if x >= 0 && x < cy && y >= 0 && y < cx { 
                     img.set_pixel(y as u32, x as u32, color);
-                } else {
+                }
+            } else {
+                if x >= 0 && x < cx && y >= 0 && y < cy {
                     img.set_pixel(x as u32, y as u32, color);
                 }
             }
+
             error2 += derror2;
             if error2 > dx {
                 if yb > ya { y += 1; } else { y -= 1 };
@@ -185,14 +202,15 @@ impl Drawable for Rect {
 impl Fillable for Rect {
     fn fill(&self, color: Pixel, img: &mut Image){
         // Fill the rectangle with pixels one at a time
-        let cx = img.get_width() as i32;
+        let cx = img.get_width()  as i32;
         let cy = img.get_height() as i32;
-        for y in self.p.y..(self.p.y+self.h) {
-            for x in self.p.x..(self.p.x+self.w) {
-                if x < 0 || x >= cx || y < 0 || y >= cy {
-                    continue;
+        let rx = self.p.x as i32; let rw = self.w as i32;
+        let ry = self.p.y as i32; let rh = self.h as i32;
+        for y in ry..ry+rh {
+            for x in rx..rx+rw { 
+                if x >= 0 && x < cx && y >= 0 && y < cy { 
+                    img.set_pixel(x as u32, y as u32, color);
                 }
-                img.set_pixel(x as u32, y as u32, color);
             }
         }
     }
@@ -211,17 +229,17 @@ impl Fillable for Tri {
     fn fill(&self, color: Pixel, img: &mut Image){
         // Fill a triangle by checking each point in a rect
         let cx = img.get_width() as i32;
-        let cy = img.get_width() as i32;
+        let cy = img.get_height() as i32;
         let rect = self.rect();
-        for y in rect.p.y..(rect.p.y+rect.h) {
-            for x in rect.p.x..(rect.p.x+rect.w) {
-                if x < 0 || x >= cx || y < 0 || y >= cy {
-                    continue;
+        let rx = rect.p.x as i32; let rw = rect.w as i32;
+        let ry = rect.p.y as i32; let rh = rect.h as i32;
+        for y in ry..ry+rh {
+            for x in rx..rx+rw {
+                if x >= 0 && x < cx && y >= 0 && y < cy { 
+                    if self.contains(V2::new([x as f32, y as f32])) {
+                        img.set_pixel(x as u32, y as u32, color);
+                    }
                 }
-                if !self.contains(V2::new([x,y])) {
-                    continue;
-                }
-                img.set_pixel(x as u32, y as u32, color);
             }
         }
     }
@@ -233,23 +251,23 @@ mod test {
     use geometry::V2;
     #[test]
     fn test_add(){
-        let a = V2::new([10, 20]);
-        let b = V2::new([30, 30]);
+        let a = V2::new([10.0, 20.0]);
+        let b = V2::new([30.0, 30.0]);
         let c = a.add(&b);
-        assert_eq!(c.x, 40);
-        assert_eq!(c.y, 50);
+        assert_eq!(c.x, 40.0);
+        assert_eq!(c.y, 50.0);
     }
 
     #[test]
     fn test_sub() {
-        let a = V2::new([100, 50]);
-        let b = V2::new([50, 30]);
+        let a = V2::new([100.0, 50.0]);
+        let b = V2::new([50.0, 30.0]);
         let c = a.sub(&b);
         let d = b.sub(&a);
-        assert_eq!(c.x, 50);
-        assert_eq!(c.y, 20);
-        assert_eq!(d.x, -50);
-        assert_eq!(d.y, -20);
+        assert_eq!(c.x, 50.0);
+        assert_eq!(c.y, 20.0);
+        assert_eq!(d.x, -50.0);
+        assert_eq!(d.y, -20.0);
     }
     
     #[test]
@@ -258,8 +276,13 @@ mod test {
         let b = V2::new([4, -2]);
         let d1 = a.dot(&b);
         let d2 = b.dot(&a);
-        assert_eq!(-2, d1);
-        assert_eq!(-2, d2);
+        assert_eq!(-2.0, d1);
+        assert_eq!(-2.0, d2);
+    }
+
+    #[test]
+    fn test_draw_every_pixel() {
+        // test drawing on every pixel to check proper edge case handling
     }
 }
 // end
