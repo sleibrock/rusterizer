@@ -1,7 +1,7 @@
 extern crate bmp;
 extern crate rusterizer;
 use bmp::Image;
-use rusterizer::geometry::{Drawable, Fillable, Tri};
+use rusterizer::two::geometry::Tri;
 use rusterizer::colors::*;
 
 /*

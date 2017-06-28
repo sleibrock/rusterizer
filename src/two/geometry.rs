@@ -1,11 +1,12 @@
-// Crate defs
+// Geometry library for 2d space operations
 extern crate bmp;
 
-// standard imports
+// Standard library imports
 use std::mem::swap;
+use std::ops::{Add, Sub, Mul, Div, Neg};
 
-// external
-use self::bmp::{Pixel, Image};
+// crate imports
+use self::bmp::{Image, Pixel};
 
 pub struct V2 {
     pub x: f32,
@@ -97,59 +98,8 @@ impl Line {
         }
         return Rect::new([tx, ty], (self.a.x-self.b.x).abs(), (self.a.y-self.b.y).abs());
     }
-}
 
-impl Rect {
-    pub fn new(p: [f32; 2], w: f32, h: f32) -> Rect {
-        return Rect{p: V2::new(p), w: w, h: h};
-    }
-}
-
-impl Tri {
-    pub fn new(v1: [f32; 2], v2: [f32; 2], v3: [f32; 2]) -> Tri {
-        return Tri{v1: V2::new(v1), v2: V2::new(v2), v3: V2::new(v3)};
-    }
-
-    pub fn rect(&self) -> Rect {
-        // Find the bounding rect of the triangle
-        let tx = self.v1.x.min(self.v2.x).min(self.v3.x);
-        let ty = self.v1.y.min(self.v2.y).min(self.v3.y);
-        let bx = self.v1.x.max(self.v2.x).max(self.v3.x);
-        let by = self.v1.y.max(self.v2.y).max(self.v3.y);
-        return V2::new([tx, ty]).line_to([bx, by]).rect();
-    }
-
-    pub fn contains(&self, p: V2) -> bool {
-        // Check if point is inside the triangle using Barycentric equations
-        let v0 = self.v3.sub(&self.v1);
-        let v1 = self.v2.sub(&self.v1);
-        let v2 = p.sub(&self.v1);
-        let dot00 = v0.dot(&v0);
-        let dot01 = v0.dot(&v1);
-        let dot02 = v0.dot(&v2);
-        let dot11 = v1.dot(&v1);
-        let dot12 = v1.dot(&v2);
-        let i_d : f32 = 1.0 / (dot00*dot11-dot01*dot01) as f32;
-        let u   : f32 = (dot11*dot02-dot01*dot12) as f32 * i_d;
-        let v   : f32 = (dot00*dot12-dot01*dot02) as f32 * i_d;
-        return (u >= 0.0) && (v >= 0.0) && (u + v < 1.0);
-    }
-}
-
-// Traits section (define the interface of inherited struts)
-pub trait Drawable {
-    // Drawable is used for stroking shapes, not filling
-    fn draw(&self, color: Pixel, img: &mut Image);
-}
-
-pub trait Fillable {
-    // Fillable is used to fill entire shapes
-    fn fill(&self, color: Pixel, img: &mut Image);
-}
-
-// Trait implements section
-impl Drawable for Line {
-    fn draw(&self, color: Pixel, img: &mut Image) {
+    pub fn draw(&self, color: Pixel, img: &mut Image) {
         // Draw a line from A to B compensating Y as we travel (Bresenham)
         // Begin by making sure the beginning A point is the minimum point
         // We want our accumulator to only increment
@@ -198,8 +148,12 @@ impl Drawable for Line {
     }
 }
 
-impl Drawable for Rect {
-    fn draw(&self, color: Pixel, img: &mut Image){
+impl Rect {
+    pub fn new(p: [f32; 2], w: f32, h: f32) -> Rect {
+        return Rect{p: V2::new(p), w: w, h: h};
+    }
+
+    pub fn draw(&self, color: Pixel, img: &mut Image){
         // Draw lines around the rectangle given
         let rx2 = self.p.x + self.w;
         let ry2 = self.p.y + self.h;
@@ -208,10 +162,9 @@ impl Drawable for Rect {
         V2::new([self.p.x, ry2]).line_to([rx2, ry2]).draw(color, img);
         V2::new([rx2, self.p.y]).line_to([rx2, ry2]).draw(color, img);
     }
-}
 
-impl Fillable for Rect {
-    fn fill(&self, color: Pixel, img: &mut Image){
+
+    pub fn fill(&self, color: Pixel, img: &mut Image){
         // Fill the rectangle with pixels one at a time
         let cx = img.get_width()  as i32;
         let cy = img.get_height() as i32;
@@ -227,17 +180,44 @@ impl Fillable for Rect {
     }
 }
 
-impl Drawable for Tri {
-    fn draw(&self, color: Pixel, img: &mut Image){
+impl Tri {
+    pub fn new(v1: [f32; 2], v2: [f32; 2], v3: [f32; 2]) -> Tri {
+        return Tri{v1: V2::new(v1), v2: V2::new(v2), v3: V2::new(v3)};
+    }
+
+    pub fn rect(&self) -> Rect {
+        // Find the bounding rect of the triangle
+        let tx = self.v1.x.min(self.v2.x).min(self.v3.x);
+        let ty = self.v1.y.min(self.v2.y).min(self.v3.y);
+        let bx = self.v1.x.max(self.v2.x).max(self.v3.x);
+        let by = self.v1.y.max(self.v2.y).max(self.v3.y);
+        return V2::new([tx, ty]).line_to([bx, by]).rect();
+    }
+
+    pub fn contains(&self, p: V2) -> bool {
+        // Check if point is inside the triangle using Barycentric equations
+        let v0 = self.v3.sub(&self.v1);
+        let v1 = self.v2.sub(&self.v1);
+        let v2 = p.sub(&self.v1);
+        let dot00 = v0.dot(&v0);
+        let dot01 = v0.dot(&v1);
+        let dot02 = v0.dot(&v2);
+        let dot11 = v1.dot(&v1);
+        let dot12 = v1.dot(&v2);
+        let i_d : f32 = 1.0 / (dot00*dot11-dot01*dot01) as f32;
+        let u   : f32 = (dot11*dot02-dot01*dot12) as f32 * i_d;
+        let v   : f32 = (dot00*dot12-dot01*dot02) as f32 * i_d;
+        return (u >= 0.0) && (v >= 0.0) && (u + v < 1.0);
+    }
+
+    pub fn draw(&self, color: Pixel, img: &mut Image){
         // Draw the lines from each vert to create a stroke triangle
         self.v1.line_to([self.v2.x, self.v2.y]).draw(color, img);
         self.v2.line_to([self.v3.x, self.v3.y]).draw(color, img);
         self.v3.line_to([self.v1.x, self.v1.y]).draw(color, img);
     }
-}
-
-impl Fillable for Tri {
-    fn fill(&self, color: Pixel, img: &mut Image){
+    
+    pub fn fill(&self, color: Pixel, img: &mut Image){
         // Fill a triangle by checking each point in a rect
         let cx = img.get_width() as i32;
         let cy = img.get_height() as i32;
@@ -259,44 +239,4 @@ impl Fillable for Tri {
     }
 }
 
-// Unit test section for mathy stuff
-#[cfg(test)]
-mod test {
-    use geometry::V2;
-    #[test]
-    fn test_add(){
-        let a = V2::new([10.0, 20.0]);
-        let b = V2::new([30.0, 30.0]);
-        let c = a.add(&b);
-        assert_eq!(c.x, 40.0);
-        assert_eq!(c.y, 50.0);
-    }
-
-    #[test]
-    fn test_sub() {
-        let a = V2::new([100.0, 50.0]);
-        let b = V2::new([50.0, 30.0]);
-        let c = a.sub(&b);
-        let d = b.sub(&a);
-        assert_eq!(c.x, 50.0);
-        assert_eq!(c.y, 20.0);
-        assert_eq!(d.x, -50.0);
-        assert_eq!(d.y, -20.0);
-    }
-    
-    #[test]
-    fn test_dotprod() {
-        let a = V2::new([1, 3]);
-        let b = V2::new([4, -2]);
-        let d1 = a.dot(&b);
-        let d2 = b.dot(&a);
-        assert_eq!(-2.0, d1);
-        assert_eq!(-2.0, d2);
-    }
-
-    #[test]
-    fn test_draw_every_pixel() {
-        // test drawing on every pixel to check proper edge case handling
-    }
-}
 // end

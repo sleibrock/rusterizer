@@ -1,5 +1,6 @@
 // assign 'drawing.rs' as the drawing module
-pub mod geometry;
+pub mod two;
+pub mod three;
 pub mod colors;
 
 #[cfg(test)]
