@@ -16,6 +16,7 @@ Rusterizer is a Rust-based graphics renderer aimed at being as fast as it can po
 ![](https://github.com/sleibrock/rusterizer/blob/master/docs/img/lines.png)
 ![](https://github.com/sleibrock/rusterizer/blob/master/docs/img/triangles.png)
 ![](https://github.com/sleibrock/rusterizer/blob/master/docs/img/pyramid.png)
+![](https://github.com/sleibrock/rusterizer/blob/master/docs/img/bilerp.png)
  
 ## Credits
 
