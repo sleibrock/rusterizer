@@ -71,6 +71,16 @@ impl V2 {
         // Get the dot product (sum of all multiplications)
         return (self.x*other.x) + (self.y*other.y);
     }
+
+    pub fn mag(&self) -> f32 {
+        // Return the magnitude of the vector
+        return (self.x*self.x+self.y*self.y).sqrt();
+    }
+
+    pub fn normal(&self) -> V2 {
+        // return the normal (unit) vector (vec/magnitude)
+        return self.div(self.mag());
+    }
 }
 
 impl Line {
@@ -140,7 +150,7 @@ pub trait Fillable {
 // Trait implements section
 impl Drawable for Line {
     fn draw(&self, color: Pixel, img: &mut Image) {
-        // Draw a line from A to B compensating Y as we travel
+        // Draw a line from A to B compensating Y as we travel (Bresenham)
         // Begin by making sure the beginning A point is the minimum point
         // We want our accumulator to only increment
         let mut steep = false;
@@ -184,6 +194,7 @@ impl Drawable for Line {
                 error2 -= dx*2;
             }
         }
+        // line drawing finished
     }
 }
 
@@ -235,13 +246,16 @@ impl Fillable for Tri {
         let ry = rect.p.y as i32; let rh = rect.h as i32;
         for y in ry..ry+rh {
             for x in rx..rx+rw {
-                if x >= 0 && x < cx && y >= 0 && y < cy { 
-                    if self.contains(V2::new([x as f32, y as f32])) {
-                        img.set_pixel(x as u32, y as u32, color);
-                    }
+                if x < 0 || x >= cx || y < 0 || y >= cy {
+                    continue;
                 }
+                if !self.contains(V2::new([x as f32, y as f32])) {
+                    continue;
+                }
+                img.set_pixel(x as u32, y as u32, color);
             }
         }
+        // finish rendering
     }
 }
 
