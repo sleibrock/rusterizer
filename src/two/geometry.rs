@@ -3,33 +3,38 @@ extern crate bmp;
 
 // Standard library imports
 use std::mem::swap;
-use std::ops::{Add, Sub, Mul, Div, Neg};
+use std::ops::{Add, Sub, Mul, Neg};
 
 // crate imports
 use self::bmp::{Image, Pixel};
 
+// A 2d vector consisting of only two types
 pub struct V2 {
     pub x: f32,
     pub y: f32,
 }
 
+// A 2d line with two endpoints (A and B)
 pub struct Line {
     pub a: V2,
     pub b: V2,
 }
 
+// A Rect represented as an origin with two width/height numbers
 pub struct Rect {
     pub p: V2,
     pub w: f32,
     pub h: f32,
 }
 
+// A triangle with 3 verticies
 pub struct Tri {
     pub v1: V2,
     pub v2: V2,
     pub v3: V2,
 }
 
+// 2d vector interface
 impl V2 {
     pub fn new(data: [f32; 2]) -> V2 {
         return V2{x: data[0], y: data[1]};
@@ -45,32 +50,17 @@ impl V2 {
         return Line{a:V2::new([self.x, self.y]), b:V2::new([data.x, data.y])};
     }
 
-    pub fn add(&self, other: &V2) -> V2 {
-        // Add two vectors together (currently unsafe for OVF)
-        return V2{x: self.x+other.x, y: self.y+other.y};
-    }
-
-    pub fn sub(&self, other: &V2) -> V2 {
-        // Sub two vectors together (unsafe OVF)
-        return V2{x: self.x-other.x, y: self.y-other.y};
-    }
-
-    pub fn mul(&self, scalar: f32) -> V2 {
-        // multiply the vector by a scalar
+    pub fn scale(&self, scalar: f32) -> V2 {
+        // multiply the vector by a scalar (different from V2.mul)
         return V2{x: self.x*scalar, y: self.y*scalar};
     }
 
-    pub fn div(&self, scalar: f32) -> V2 {
+    pub fn divide(&self, scalar: f32) -> V2 {
         // divide the vector by a scalar (must be nonzero/non-NaN)
         if scalar.is_infinite() || scalar.is_nan() || scalar != 0.0 {
             panic!("Division by zero or non-finite number");
         }
         return V2{x: self.x/scalar, y: self.y/scalar};
-    }
-
-    pub fn dot(&self, other: &V2) -> f32 {
-        // Get the dot product (sum of all multiplications)
-        return (self.x*other.x) + (self.y*other.y);
     }
 
     pub fn mag(&self) -> f32 {
@@ -80,7 +70,53 @@ impl V2 {
 
     pub fn normal(&self) -> V2 {
         // return the normal (unit) vector (vec/magnitude)
-        return self.div(self.mag());
+        return self.divide(self.mag());
+    }
+}
+
+// Implement common unit traits for V2
+impl Add for V2 {
+    type Output = V2;
+    fn add(self, other: V2) -> V2 {
+        return V2{x: self.x+other.x, y: self.y+other.y};
+    }
+}
+
+impl Sub for V2 {
+    type Output = V2;
+    fn sub(self, other: V2) -> V2 {
+        return V2{x: self.x-other.x, y: self.y-other.y};
+    }
+}
+
+impl Mul for V2 {
+    type Output = f32;
+    fn mul(self, other: V2) -> f32 {
+        // Multiplication of vectors calculates the Dot product
+        // use V2.scale to scale a vector by a scalar
+        return (self.x*other.x) + (self.y*other.y);
+    }
+}
+
+impl Neg for V2 {
+    type Output = V2;
+    fn neg(self) -> V2 {
+        return V2{x: -self.x, y: -self.y};
+    }
+}
+
+impl PartialEq for V2 {
+    fn eq(&self, other: &V2) -> bool {
+        return (self.x==other.x) && (self.y==other.y);
+    }
+}
+
+// used for copy/cloning structs (Clone is a supertrait of Copy)
+// needed when vars are moved from one reference to another
+impl Copy for V2 {}
+impl Clone for V2 {
+    fn clone(&self) -> V2 {
+        return *self;
     }
 }
 
@@ -96,7 +132,11 @@ impl Line {
             tx = self.b.x;
             ty = self.b.y;
         }
-        return Rect::new([tx, ty], (self.a.x-self.b.x).abs(), (self.a.y-self.b.y).abs());
+        return Rect::new(
+            [tx, ty],
+            (self.a.x-self.b.x).abs(),
+            (self.a.y-self.b.y).abs()
+        );
     }
 
     pub fn draw(&self, color: Pixel, img: &mut Image) {
@@ -146,6 +186,7 @@ impl Line {
         }
         // line drawing finished
     }
+    // end line
 }
 
 impl Rect {
@@ -178,6 +219,7 @@ impl Rect {
             }
         }
     }
+    // end rect
 }
 
 impl Tri {
@@ -196,14 +238,14 @@ impl Tri {
 
     pub fn contains(&self, p: V2) -> bool {
         // Check if point is inside the triangle using Barycentric equations
-        let v0 = self.v3.sub(&self.v1);
-        let v1 = self.v2.sub(&self.v1);
-        let v2 = p.sub(&self.v1);
-        let dot00 = v0.dot(&v0);
-        let dot01 = v0.dot(&v1);
-        let dot02 = v0.dot(&v2);
-        let dot11 = v1.dot(&v1);
-        let dot12 = v1.dot(&v2);
+        let v0 = self.v3 - self.v1;
+        let v1 = self.v2 - self.v1;
+        let v2 = p - self.v1;
+        let dot00 = v0 * v0;
+        let dot01 = v0 * v1;
+        let dot02 = v0 * v2;
+        let dot11 = v1 * v1;
+        let dot12 = v1 * v2;
         let i_d : f32 = 1.0 / (dot00*dot11-dot01*dot01) as f32;
         let u   : f32 = (dot11*dot02-dot01*dot12) as f32 * i_d;
         let v   : f32 = (dot00*dot12-dot01*dot02) as f32 * i_d;
@@ -237,6 +279,7 @@ impl Tri {
         }
         // finish rendering
     }
+    // end Tri
 }
 
 // end
